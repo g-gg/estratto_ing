@@ -10,7 +10,7 @@ import pandas as pd
 # https://stackoverflow.com/questions/15491894/regex-to-validate-date-formats-dd-mm-yyyy-dd-mm-yyyy-dd-mm-yyyy-dd-mmm-yyyy
 re_date = r'^([0-3]*\d)\/([0-1]*\d)\/(20[1-2]\d)'
 
-uscite = ('PRELIEVO CARTA', 'PAGAMENTO CARTA', 'PAGAMENTI DIVERSI', 'COMMISSIONE PRELIEVO EUROPA', 'COMMISSIONI', 'INTERESSI E COMPETENZE')
+uscite = ('PRELIEVO CARTA', 'PAGAMENTO CARTA', 'PAGAMENTI DIVERSI', 'COMMISSIONE PRELIEVO EUROPA', 'COMMISSIONI', 'INTERESSI E COMPETENZE', 'VS.DISPOSIZIONE', 'COMMISSIONE TASSO DI CAMBIO')
 entrate = ('ACCREDITO BONIFICO', 'ACCREDITO BONIFICO ESTERO', 'SALDO INIZIALE', 'SALDO FINALE')
 
 class OperationFormatError(Exception):
@@ -30,7 +30,7 @@ class parser:
     def parse(self):
         self.estimated_page = -1
         self.operations = list()
-        locale.setlocale(locale.LC_NUMERIC, "it")
+        locale.setlocale(locale.LC_NUMERIC, "it_IT")
         self.state = 'DOC_DATE' # initial state
         with open(self.filename, "rb") as pdf_file:
             read_pdf = PyPDF2.PdfFileReader(pdf_file)
@@ -72,7 +72,7 @@ class parser:
             # can happen when a date appears in the payment descriptions in the beginning of the line
             raise OperationFormatError(f'€ sign expected in {line}')
 
-        amount_str = line[:euro_pos].strip()
+        amount_str = line[:euro_pos].strip().replace('.', '') # remove thousand separator as it confuses locale.delocalize()
         amount = locale.atof(amount_str)
 
         description = line[(euro_pos+1):].lstrip()
@@ -110,8 +110,8 @@ class parser:
             return
         elif self.state == 'DOC_DATE':
             # wait for document date
-            doc_date_string = 'Estratto Conto Trimestrale al '
-            if doc_date_string in line:
+            doc_date_string = 'estratto conto trimestrale al '
+            if doc_date_string in line.lower():
                 m = re.match(re_date, line[len(doc_date_string):])
                 self.doc_date = date(int(m.groups()[2]), int(m.groups()[1]), int(m.groups()[0]))
                 self.change_state('TITLE')
@@ -132,12 +132,19 @@ class parser:
                     print(op)
             except OperationFormatError:
                 # not a valid 1st line of operation
-                if 'Tel  02-552261 ' in line:
-                    self.change_state('HEADER')
-                else:
-                    if self.verbosity=='debug':
-                        print('appending', line)
+
+                # sometimes the last line can be combined with the separator followed by the footer
+                before, separator, after = line.partition('RECT_211231')
+                if (not separator) and (not after):
+                    # the separator was not found
                     self.append_to_last_operation(line)
+                else:
+                    # the separator was found
+                    if before:
+                        self.append_to_last_operation(before)
+
+                    self.change_state('HEADER')
+
             except (NoSeparatorError, NoTypeError) as e:
                 raise(e)
             else:
@@ -152,11 +159,15 @@ class parser:
 
     def add_operation(self, op):
         self.operations.append(op)
+        if self.verbosity=='debug' or self.verbosity=='info':
+            print('adding', op)
 
     def append_to_last_operation(self, line):
         op = self.operations[-1]
         op[5] = ' '.join([op[5], line])
         self.operations[-1] = op
+        if self.verbosity=='debug' or self.verbosity=='info':
+            print('appending', line)
 
     def extract_controparte(self):
         controparte = list()
@@ -207,6 +218,12 @@ class parser:
                         raise Exception(f'could not match controparte for {op[4]} in {op[5]}/CBILL/PAGO PA')
                 else:
                     raise Exception(f'unhandled commission {op[5]}')
+            elif op[4] == 'VS.DISPOSIZIONE':
+                m = re.match(r'(?:.*)\sA\sFAVORE\sDI\s(.*)\sBENEF.\s', op[5])
+                if m:
+                    controparte.append(m.groups()[0].strip())
+                else:
+                    raise Exception(f'could not match controparte for {op[4]} in {op[5]}')
 
             else:
                 controparte.append(None)
@@ -226,7 +243,7 @@ if __name__ == '__main__':
     if len(sys.argv) == 2:
         filename, file_extension = os.path.splitext(sys.argv[1])
         if os.path.exists(sys.argv[1]) and file_extension=='.pdf':
-            doc = parser(sys.argv[1])
+            doc = parser(sys.argv[1], verbosity='info')
             doc.parse()
             doc.write_to_excel()
         else:
