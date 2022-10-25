@@ -21,7 +21,7 @@ The first and the last row are special, the "Saldo iniziale" (opening balance), 
 
 The movements in between are either active or passives, depending on the column. Unfortunately, empty columns are not resolvable in the output of [extract_text()](https://pypdf2.readthedocs.io/en/latest/modules/PageObject.html#PyPDF2._page.PageObject.extract_text). Hence the association of the amount to either actives or passives must be made on the basis of the movement description (last column). In the code there are 2 sets (uscite, entrate) to identify the respecive column.
 
-##Testing
+## Testing
 As I strongly advise against making any account statement public, you might test it with yours privately. Feel free to report problems as an issue in Github, and if possible, suggest potential solutions as pull requests. Please provide as much detail as possible. If the parser is initialised with `verbosity='debug'`, you may locate the problem and provide the lines that trigger the problem.
 
 
