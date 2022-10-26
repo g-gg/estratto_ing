@@ -141,8 +141,17 @@ class parser:
                 raise(e)
             else:
                 self.add_operation(op)
-                if op[4].startswith('SALDO FINALE'):
+                if op[4].startswith('SALDO INIZIALE'):
+                    self.balance = op[3]
+                    assert op[3], 'saldo iniziale is undefined'
+                elif op[4].startswith('SALDO FINALE'):
+                    assert round(self.balance*100)/100 == op[3], f'final balance does not add up ({op[3]} saldo finale vs. {self.balance} calculated)'
                     self.change_state('DONE')
+                else:
+                    if op[3]: # entrata
+                        self.balance += op[3]
+                    else: # uscita
+                        self.balance -= op[2]
 
             if separator: # end of page was reached, look for header again
                 self.change_state('HEADER')
