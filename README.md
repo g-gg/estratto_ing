@@ -14,7 +14,7 @@ where `filename.pdf` must point to a relative or absolute filename. The result o
 ## Description
 The account balance is presented for a quarter of the year in the form of PDF document. The document is found in the customer area of [ingdirect.it](https://www.ingdirect.it/), in the section of "Conto Corrente". In the lateral menu under the group "Consulta conto" the position "Estratto conto" is found, where the documents can be downloaded.
 
-The documents present the movements on the account in a 5 column table:
+The script is compatible with account statements of the second quarter 2019 onwards (look for vertical string `RECT_` in the footer). The documents present the movements on the account in a 5 column table:
 ![lista movimenti](doc/lista_movimenti.png)
 
 The first and the last row are special, the "Saldo iniziale" (opening balance), and the "Saldo finale" (final balance), representing the level of the account at the beginning and the end of the trimester respectively.

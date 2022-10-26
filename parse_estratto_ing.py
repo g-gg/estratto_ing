@@ -10,8 +10,11 @@ import pandas as pd
 # https://stackoverflow.com/questions/15491894/regex-to-validate-date-formats-dd-mm-yyyy-dd-mm-yyyy-dd-mm-yyyy-dd-mmm-yyyy
 re_date = r'^([0-3]*\d)\/([0-1]*\d)\/(20[1-2]\d)'
 
-uscite = ('PRELIEVO CARTA', 'PAGAMENTO CARTA', 'PAGAMENTI DIVERSI', 'COMMISSIONE PRELIEVO EUROPA', 'COMMISSIONI', 'INTERESSI E COMPETENZE', 'VS.DISPOSIZIONE', 'COMMISSIONE TASSO DI CAMBIO')
-entrate = ('ACCREDITO BONIFICO', 'ACCREDITO BONIFICO ESTERO', 'SALDO INIZIALE', 'SALDO FINALE')
+uscite = ('PRELIEVO CARTA', 'PAGAMENTO CARTA', 'PAGAMENTI DIVERSI', 'COMMISSIONE PRELIEVO EUROPA', 
+    'COMMISSIONI', 'INTERESSI E COMPETENZE', 'VS.DISPOSIZIONE', 'COMMISSIONE TASSO DI CAMBIO', 
+    'COMMISSIONE SERVIZIO ALERT', 'PAGAMENTO F24', 'BOLLI GOVERNATIVI')
+entrate = ('ACCR. STIPENDIO-PENSIONE', 'ACCREDITO BONIFICO', 'ACCREDITO BONIFICO ESTERO', 
+    'SALDO INIZIALE', 'SALDO FINALE', 'GIRO DA MIEI CONTI', 'TRASFERIMENTO IN ACCREDITO')
 
 class OperationFormatError(Exception):
     pass
@@ -126,25 +129,14 @@ class parser:
             assert self.estimated_page == page, f'actual page number ({page}) does not match expected page number ({self.estimated_page})'
             assert page <= number_of_pages, f'page ({page}) must be smaller than absolute page numbers ({number_of_pages})'
 
+            # sometimes the last line can be combined with the separator followed by the footer
+            before, separator, after = line.partition('RECT_')
             try:
-                op = self.parse_operation(line)
+                op = self.parse_operation(before)
                 if self.verbosity=='debug':
                     print(op)
             except OperationFormatError:
-                # not a valid 1st line of operation
-
-                # sometimes the last line can be combined with the separator followed by the footer
-                before, separator, after = line.partition('RECT_')
-                if (not separator) and (not after):
-                    # the separator was not found
-                    self.append_to_last_operation(line)
-                else:
-                    # the separator was found
-                    if before:
-                        self.append_to_last_operation(before)
-
-                    self.change_state('HEADER')
-
+                self.append_to_last_operation(before)
             except (NoSeparatorError, NoTypeError) as e:
                 raise(e)
             else:
@@ -152,6 +144,8 @@ class parser:
                 if op[4].startswith('SALDO FINALE'):
                     self.change_state('DONE')
 
+            if separator: # end of page was reached, look for header again
+                self.change_state('HEADER')
 
     def add_page(self, text, page, number_of_pages):
         for line in text.splitlines():
@@ -171,11 +165,11 @@ class parser:
 
     def extract_controparte(self):
         controparte = list()
-        for op in doc.operations:
-            if op[4] == 'PRELIEVO CARTA' or op[4] == 'PAGAMENTO CARTA' or op[4] == 'COMMISSIONE PRELIEVO EUROPA':
+        for op in self.operations:
+            if op[4] in ['PRELIEVO CARTA', 'PAGAMENTO CARTA', 'COMMISSIONE PRELIEVO EUROPA', 'TRASFERIMENTO IN ACCREDITO']:
                 before, kw, after = op[5].partition(' PRESSO ')
                 controparte.append(after)
-            elif op[4] == 'ACCREDITO BONIFICO' or op[4] == 'ACCREDITO BONIFICO ESTERO':
+            elif op[4] in ['ACCREDITO BONIFICO', 'ACCREDITO BONIFICO ESTERO', 'ACCR. STIPENDIO-PENSIONE']:
                 m = re.match(r'(?:.*)ANAGRAFICA ORDINANTE\s(.*)\sNOTE:', op[5])
                 if m:
                     controparte.append(m.groups()[0].strip())
@@ -207,6 +201,9 @@ class parser:
                         controparte.append(m.groups()[0].strip())
                     else:
                         raise Exception(f'could not match controparte for {op[4]} in {op[5]}/CBILL/PAGO PA')
+                elif op[5].startswith('ADDEBITO TELEPASS'):
+                    controparte.append('TELEPASS')
+
                 else:
                     raise Exception(f'unhandled payment {op[5]}')
             elif op[4] == 'COMMISSIONI':
@@ -230,26 +227,29 @@ class parser:
         return controparte
     
     def write_to_excel(self, filename=None):
-        df = pd.DataFrame(doc.operations, columns=['data operazione', 'data valuta', 'uscite', 'entrate', 'tipo', 'descrizione'])
-        controparte = doc.extract_controparte()
+        df = pd.DataFrame(self.operations, columns=['data operazione', 'data valuta', 'uscite', 'entrate', 'tipo', 'descrizione'])
+        controparte = self.extract_controparte()
         df.insert(len(df.columns), 'controparte', controparte)
         if self.verbosity=='debug':
             print(df)
         if not filename:
             filename = self.filename.replace('.pdf', '.xlsx')
         df.to_excel(filename)
-
+    
+def parse_file(filename):
+    file_stem, file_extension = os.path.splitext(filename)
+    if os.path.exists(filename) and file_extension=='.pdf':
+        doc = parser(filename, verbosity='info')
+        doc.parse()
+        if doc.state=='DONE':
+            doc.write_to_excel()
+        else:
+            raise Exception(f'something didn''t go that well with {filename}')
+    else:
+        raise Exception(f'file {filename} does not exist, or isn''t a valid pdf file')
+    
 if __name__ == '__main__':
     if len(sys.argv) == 2:
-        filename, file_extension = os.path.splitext(sys.argv[1])
-        if os.path.exists(sys.argv[1]) and file_extension=='.pdf':
-            doc = parser(sys.argv[1], verbosity='info')
-            doc.parse()
-            if doc.state=='DONE':
-                doc.write_to_excel()
-            else:
-                print('something didn''t go that well')
-        else:
-            print(f'file {sys.argv[1]} does not exist, or isn''t a valid pdf file')
+        parse_file(sys.argv[1])
     else:
         print(f'provide a filename as parameter')
