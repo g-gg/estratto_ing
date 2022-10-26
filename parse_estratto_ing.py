@@ -37,7 +37,7 @@ class parser:
             number_of_pages = read_pdf.getNumPages()
             for p in range(0, number_of_pages):
                 page = read_pdf.pages[p]
-                page_content = page.extractText()
+                page_content = page.extract_text()
                 self.add_page(page_content, p, number_of_pages)
 
     def change_state(self, new_state):
@@ -134,7 +134,7 @@ class parser:
                 # not a valid 1st line of operation
 
                 # sometimes the last line can be combined with the separator followed by the footer
-                before, separator, after = line.partition('RECT_211231')
+                before, separator, after = line.partition('RECT_')
                 if (not separator) and (not after):
                     # the separator was not found
                     self.append_to_last_operation(line)
@@ -245,7 +245,10 @@ if __name__ == '__main__':
         if os.path.exists(sys.argv[1]) and file_extension=='.pdf':
             doc = parser(sys.argv[1], verbosity='info')
             doc.parse()
-            doc.write_to_excel()
+            if doc.state=='DONE':
+                doc.write_to_excel()
+            else:
+                print('something didn''t go that well')
         else:
             print(f'file {sys.argv[1]} does not exist, or isn''t a valid pdf file')
     else:
