@@ -1,7 +1,7 @@
 import sys
 import os.path
-import PyPDF2
-import regex as re
+import pypdf
+import re
 from datetime import date
 import locale
 import pandas as pd
@@ -36,8 +36,8 @@ class parser:
         locale.setlocale(locale.LC_NUMERIC, "it_IT")
         self.state = 'DOC_DATE' # initial state
         with open(self.filename, "rb") as pdf_file:
-            read_pdf = PyPDF2.PdfFileReader(pdf_file)
-            number_of_pages = read_pdf.getNumPages()
+            read_pdf = pypdf.PdfReader(pdf_file)
+            number_of_pages = len(read_pdf.pages)
             for p in range(0, number_of_pages):
                 page = read_pdf.pages[p]
                 page_content = page.extract_text()

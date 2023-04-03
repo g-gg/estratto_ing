@@ -1,4 +1,4 @@
-PyPDF2
+pypdf
 pandas
 regex
 openpyxl
