@@ -244,6 +244,16 @@ class parser:
         if not filename:
             filename = self.filename.replace('.pdf', '.xlsx')
         df.to_excel(filename)
+
+    def write_csv_for_gnucash(self, filename=None):
+        df = pd.DataFrame(self.operations, columns=['Date', 'X', 'Withdrawal', 'Deposit', 'Y', 'Description'])
+        df.drop('X', axis=1)
+        df.drop('Y', axis=1)
+        if self.verbosity=='debug':
+            print(df)
+        if not filename:
+            filename = self.filename.replace('.pdf', '_gnucash.csv')
+        df.to_csv(filename)
     
 def parse_file(filename):
     file_stem, file_extension = os.path.splitext(filename)
@@ -252,6 +262,7 @@ def parse_file(filename):
         doc.parse()
         if doc.state=='DONE':
             doc.write_to_excel()
+            doc.write_csv_for_gnucash()            
         else:
             raise Exception(f'something didn''t go that well with {filename}')
     else:
