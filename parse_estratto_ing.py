@@ -246,14 +246,17 @@ class parser:
         df.to_excel(filename)
 
     def write_csv_for_gnucash(self, filename=None):
-        df = pd.DataFrame(self.operations, columns=['Date', 'X', 'Withdrawal', 'Deposit', 'Y', 'Description'])
-        df.drop('X', axis=1)
-        df.drop('Y', axis=1)
+        df = pd.DataFrame(self.operations, columns=['Date', 'Amount', 'Withdrawal', 'Deposit', 'Tipo', 'Description'])
+        df.loc[df['Description'] == '', 'Description'] = df['Tipo']
+        df['Amount'] = df['Deposit'].fillna(0) - df['Withdrawal'].fillna(0)
+        df.drop('Tipo', axis=1, inplace=True)
+        df.drop('Deposit', axis=1, inplace=True)
+        df.drop('Withdrawal', axis=1, inplace=True)
         if self.verbosity=='debug':
             print(df)
         if not filename:
             filename = self.filename.replace('.pdf', '_gnucash.csv')
-        df.to_csv(filename)
+        df.to_csv(filename, index=False)
     
 def parse_file(filename):
     file_stem, file_extension = os.path.splitext(filename)
