@@ -140,18 +140,23 @@ class parser:
             except (NoSeparatorError, NoTypeError) as e:
                 raise(e)
             else:
-                self.add_operation(op)
+                # op is [date1, date2, None, amount, typestr, description]
                 if op[4].startswith('SALDO INIZIALE'):
                     self.balance = op[3]
                     assert op[3], 'saldo iniziale is undefined'
+                    op[5] = f'SALDO INIZIALE {op[3]:.2f} EUR'
+                    op[3] = 0 # do not treat as actual transaction
                 elif op[4].startswith('SALDO FINALE'):
                     assert round(self.balance*100)/100 == op[3], f'final balance does not add up ({op[3]} saldo finale vs. {self.balance} calculated)'
                     self.change_state('DONE')
+                    op[5] = f'SALDO FINALE {op[3]:.2f} EUR'
+                    op[3] = 0 # do not treat as actual transaction
                 else:
                     if op[3]: # entrata
                         self.balance += op[3]
                     else: # uscita
                         self.balance -= op[2]
+                self.add_operation(op) # (in)complete operation is added. if in the next lines more is to come, it is appended
 
             if separator: # end of page was reached, look for header again
                 self.change_state('HEADER')
