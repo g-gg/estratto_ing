@@ -130,13 +130,21 @@ class parser:
             assert page <= number_of_pages, f'page ({page}) must be smaller than absolute page numbers ({number_of_pages})'
 
             # sometimes the last line can be combined with the separator followed by the footer
-            before, separator, after = line.partition('RECT_')
+            before, separator, after = line.partition('nullING  BANK  N.V.  Milan  Branch') # as found on 2023Q2
+            if not separator:
+                before, separator, after = line.partition('RECT_') # RECT_210320
             try:
                 op = self.parse_operation(before)
                 if self.verbosity=='debug':
                     print(op)
             except OperationFormatError:
-                self.append_to_last_operation(before)
+                if before.startswith(f'{number_of_pages} Pag. {page+1}/'):
+                    if self.verbosity=='debug':
+                        print('skipping', before)
+                elif 'Pag.' in before:
+                    pass 
+                else:
+                    self.append_to_last_operation(before)
             except (NoSeparatorError, NoTypeError) as e:
                 raise(e)
             else:
@@ -303,11 +311,11 @@ class parser:
 def parse_file(filename):
     file_stem, file_extension = os.path.splitext(filename)
     if os.path.exists(filename) and file_extension=='.pdf':
-        doc = parser(filename, verbosity='info')
+        doc = parser(filename, verbosity='debug')
         doc.parse()
         if doc.state=='DONE':
             doc.write_to_excel()
-            doc.export_to_mmex()
+            #doc.export_to_mmex()
             doc.write_csv_for_gnucash()            
         else:
             raise Exception(f'something didn''t go that well with {filename}')
