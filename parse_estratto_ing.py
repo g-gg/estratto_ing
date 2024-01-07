@@ -245,6 +245,43 @@ class parser:
             filename = self.filename.replace('.pdf', '.xlsx')
         df.to_excel(filename)
     
+    def export_to_mmex(self, filename=None):
+        # ID,Date,Status,Type,Account,Payee,Category,Amount,Currency,Number,Notes
+        # ,DD/MM/YYYY,,Withdrawal,ACCOUNT_NAME,PAYEE_NAME,CATEGORY_NAME,-100.00,EUR,,
+
+        export_matrix = list()
+
+        controparte = self.extract_controparte()
+
+        for i in range(0, len(self.operations)):
+            op = self.operations[i]
+            date = op[0]
+            uscita = op[2]
+            entrata = op[3]
+            tipo = op[4]
+            descrizione = op[5]
+            payee = controparte[i]
+
+            if uscita:
+                type = 'Withdrawal'
+                amount = -uscita
+            else:
+                type = 'Deposit'
+                amount = entrata
+
+            if tipo in ['SALDO INIZIALE', 'SALDO FINALE']:
+                continue
+
+            export_matrix.append((None, date, None, type, None, payee.replace(',', ''), None, None, amount, 'EUR', None, ' '.join([tipo, descrizione])))
+
+        df = pd.DataFrame(export_matrix, columns=['ID', 'Date', 'Status', 'Type', 'Account', 'Payee', 'Category', 'SubCategory', 'Amount', 'Currency', 'Number', 'Notes'])
+        
+        if self.verbosity=='debug':
+            print(df)
+        if not filename:
+            filename = self.filename.replace('.pdf', '.csv')
+        df.to_csv(filename, sep=',', decimal='.', index=False)
+    
 def parse_file(filename):
     file_stem, file_extension = os.path.splitext(filename)
     if os.path.exists(filename) and file_extension=='.pdf':
@@ -252,6 +289,7 @@ def parse_file(filename):
         doc.parse()
         if doc.state=='DONE':
             doc.write_to_excel()
+            doc.export_to_mmex()
         else:
             raise Exception(f'something didn''t go that well with {filename}')
     else:
